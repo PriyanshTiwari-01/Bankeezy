@@ -1,0 +1,12 @@
+# Environments
+bancs/
+
+# Python Cache
+__pycache__/
+*.pyc
+
+# Databases
+db.sqlite3
+
+# Secrets
+.env
