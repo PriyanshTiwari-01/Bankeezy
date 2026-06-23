@@ -2,7 +2,8 @@ from django.shortcuts import render
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from .models import Account, Transaction
-from .serializers import AccountSerializer, TransactionSerializer, DepositSerializer, WithdrawSerializer
+from .serializers import AccountSerializer, TransactionSerializer, DepositSerializer, WithdrawSerializer, TransferSerializer
+from django.db import transaction
 
 @api_view(['GET'])
 def get_accounts(req):
@@ -78,3 +79,58 @@ def withdraw(request):
             )
     return Response(serializer.errors)
     
+
+@api_view(['POST'])
+def transfer(request):
+    serializer = TransferSerializer(data = request.data)
+    
+    if serializer.is_valid():
+        with transaction.atomic():
+            sender_account = serializer.validated_data['sender_account']
+            receiver_account = serializer.validated_data['receiver_account']
+            amount = serializer.validated_data['amount']
+
+            try:
+                sender=Account.objects.get(account_number = sender_account)
+            except Account.DoesNotExist:
+                return Response({
+                    'error':"Sender account not found!"
+                })
+            
+            try:
+                receiver= Account.objects.get(account_number = receiver_account)
+            except Account.DoesNotExist:
+                return Response({
+                    'error':"Receiver's account not found"
+                })
+                
+            if sender.account_number == receiver.account_number:
+                return Response ({
+                    'message': 'Self Transfer not applicable!'
+                })
+            if sender.balance>=amount:
+                receiver.balance+=amount
+                sender.balance -=amount
+                sender.save()
+                receiver.save()
+                
+                Transaction.objects.create(
+                    account = sender,
+                    transaction_type =  'Transfer_out',
+                    amount = amount,
+                    remarks = f'transferred to {receiver.account_number}'
+                )
+                
+                Transaction.objects.create(
+                    account = receiver,
+                    transaction_type = 'Transfer_in',
+                    amount = amount,
+                    remarks = f'transferred from {sender.account_number}'
+                )
+                
+                return Response({'message':'Transfer Successful!',
+                                'balance':sender.balance})
+            else:
+                return Response({'message':'Insufficient Balance!!'})
+    else:
+        return Response(serializer.errors)
