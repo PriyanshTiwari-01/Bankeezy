@@ -134,3 +134,19 @@ def transfer(request):
                 return Response({'message':'Insufficient Balance!!'})
     else:
         return Response(serializer.errors)
+    
+    
+@api_view(['GET'])
+def transaction_history(request, account_number):
+    try:
+        account = Account.objects.get(
+            account_number=account_number
+        )
+    except Account.DoesNotExist:
+        return Response({'error':'Account Not Found!'}, status = 404)
+    
+    transactions= Transaction.objects.filter(account = account).order_by('-created_at')
+    serializer = TransactionSerializer(transactions, many = True)
+    
+    return Response ({'account_number':account.account_number,
+                      'transactions':serializer.data})
